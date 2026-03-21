@@ -1169,6 +1169,12 @@ class ESDashboard:
         self.app.layout = dbc.Container([
             # Header with gradient
             html.Div([
+                dcc.Interval(
+                    id='loading-interval',
+                    interval=10000,  # každých 10 sekund
+                    n_intervals=0,
+                    disabled=False
+                ),                
                 html.Div([
                     html.H1("ES Futures Quantitative Research Platform",
                            className="text-center mb-2",
@@ -1517,6 +1523,7 @@ class ESDashboard:
              Output('extreme-events-table', 'children')],
             [Input('session-dropdown', 'value'),
              Input('analysis-type', 'value'),
+             Input('loading-interval', 'n_intervals'),
              Input('show-levels', 'value')]
         )
         def update_dashboard(session_id, analysis_type, show_levels):
@@ -1530,27 +1537,25 @@ class ESDashboard:
             )
             no_data = html.Span("načítám...", className="text-warning")
             
-            if not _dashboard.sessions:
-                # Vrať přesně 18 prázdných hodnot
+            if not hasattr(_dashboard, '_data_loaded') or not _dashboard._data_loaded:
+                empty_fig = go.Figure()
+                empty_fig.update_layout(
+                    template='darkly',
+                    annotations=[{
+                        'text': '⏳ Načítám data ze serveru...<br>Stránka se automaticky obnoví',
+                        'showarrow': False,
+                        'font': {'size': 16, 'color': '#4dabf7'},
+                        'xref': 'paper', 'yref': 'paper',
+                        'x': 0.5, 'y': 0.5
+                    }]
+                )
+                no_data = html.Span("⏳ načítám...", className="text-warning")
+                
                 return (
-                    empty_fig,  # price-chart
-                    empty_fig,  # dist-chart
-                    no_data,    # stats-panel
-                    no_data,    # tail-panel
-                    no_data,    # dist-panel
-                    no_data,    # regime-panel
-                    "--",       # current-price
-                    no_data,    # price-change
-                    "--",       # session-vol
-                    "--",       # vol-regime
-                    "--",       # extreme-count
-                    "--",       # extreme-latest
-                    "--",       # hmm-regime
-                    "--",       # hmm-prob
-                    no_data,    # hmm-state-params
-                    empty_fig,  # hmm-transition
-                    empty_fig,  # hmm-states-chart
-                    no_data,    # extreme-events-table
+                    empty_fig, empty_fig,
+                    no_data, no_data, no_data, no_data,
+                    "--", no_data, "--", "--", "--", "--",
+                    "--", "--", no_data, empty_fig, empty_fig, no_data
                 )
 
 
@@ -2405,23 +2410,41 @@ def main():
 
 import os
 import threading
+import time
 
 setup_logging()
-
-# Vytvoř dashboard BEZ načítání dat
 _dashboard = ESDashboard()
 
-def load_data_background():
-    """Načte data na pozadí zatímco server už běží."""
-    logger.info("Spouštím načítání dat na pozadí...")
-    _dashboard.load_data()
-    logger.info("Data načtena!")
+# Přidej loading stav do dashboardu
+_dashboard._data_loaded = False
+_dashboard._loading_error = None
 
-# Spusť načítání dat na pozadí
+def load_data_background():
+    """Načte data na pozadí s retry logikou."""
+    max_attempts = 3
+    
+    for attempt in range(max_attempts):
+        try:
+            logger.info(f"Načítám data, pokus {attempt + 1}/{max_attempts}")
+            _dashboard.load_data()
+            _dashboard._data_loaded = True
+            logger.info("Data úspěšně načtena!")
+            return
+        except Exception as e:
+            logger.error(f"Chyba při načítání dat: {e}")
+            if attempt < max_attempts - 1:
+                wait = (attempt + 1) * 30  # 30s, 60s
+                logger.info(f"Čekám {wait}s před dalším pokusem...")
+                time.sleep(wait)
+    
+    _dashboard._loading_error = "Nepodařilo se načíst data"
+    logger.error("Všechny pokusy selhaly")
+
+# Spusť načítání na pozadí
 _thread = threading.Thread(target=load_data_background, daemon=True)
 _thread.start()
 
-# Server musí být dostupný IHNED - tohle Gunicorn najde
+# Server MUSÍ být dostupný ihned
 server = _dashboard.app.server
 
 if __name__ == "__main__":
