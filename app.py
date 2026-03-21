@@ -2370,12 +2370,25 @@ def main():
 # ============================================================================
 
 import os
+import threading
 
-# Tohle se spustí když Gunicorn načte soubor
 setup_logging()
+
+# Vytvoř dashboard BEZ načítání dat
 _dashboard = ESDashboard()
-_dashboard.load_data()
-server = _dashboard.app.server  # <-- Gunicorn hledá přesně tuhle proměnnou
+
+def load_data_background():
+    """Načte data na pozadí zatímco server už běží."""
+    logger.info("Spouštím načítání dat na pozadí...")
+    _dashboard.load_data()
+    logger.info("Data načtena!")
+
+# Spusť načítání dat na pozadí
+_thread = threading.Thread(target=load_data_background, daemon=True)
+_thread.start()
+
+# Server musí být dostupný IHNED - tohle Gunicorn najde
+server = _dashboard.app.server
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8050))

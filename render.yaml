@@ -2,8 +2,6 @@ services:
   - type: web
     name: es-quant-platform
     env: python
+    pythonVersion: "3.12.10"
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:server --bind 0.0.0.0:$PORT
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
+    startCommand: gunicorn app:server --bind 0.0.0.0:$PORT --timeout 120 --workers 1
