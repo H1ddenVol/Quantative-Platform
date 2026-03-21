@@ -1520,6 +1520,40 @@ class ESDashboard:
              Input('show-levels', 'value')]
         )
         def update_dashboard(session_id, analysis_type, show_levels):
+
+
+        # GUARD - data ještě nejsou načtená
+            empty_fig = go.Figure()
+            empty_fig.update_layout(
+                template='darkly',
+                title={'text': 'Načítám data, čekejte...'}
+            )
+            no_data = html.Span("načítám...", className="text-warning")
+            
+            if not _dashboard.sessions:
+                # Vrať přesně 18 prázdných hodnot
+                return (
+                    empty_fig,  # price-chart
+                    empty_fig,  # dist-chart
+                    no_data,    # stats-panel
+                    no_data,    # tail-panel
+                    no_data,    # dist-panel
+                    no_data,    # regime-panel
+                    "--",       # current-price
+                    no_data,    # price-change
+                    "--",       # session-vol
+                    "--",       # vol-regime
+                    "--",       # extreme-count
+                    "--",       # extreme-latest
+                    "--",       # hmm-regime
+                    "--",       # hmm-prob
+                    no_data,    # hmm-state-params
+                    empty_fig,  # hmm-transition
+                    empty_fig,  # hmm-states-chart
+                    no_data,    # extreme-events-table
+                )
+
+
             if not session_id or session_id not in self.sessions:
                 empty_fig = go.Figure()
                 empty_fig.update_layout(template="plotly_dark", title="No data")
